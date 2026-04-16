@@ -8,10 +8,17 @@ from datetime import datetime
 
 from cv_engine.pose_detector import PoseDetector
 from cv_engine.biomechanics import BiomechanicsEngine
-from models.database import get_db, SessionStats
-from sqlalchemy.orm import Session
+from models.database import get_db
+from routes.auth_routes import router as auth_router
+from routes.admin_routes import router as admin_router
+from bson import ObjectId
 
 app = FastAPI(title="Athletica AI API")
+
+# Register Routers
+app.include_router(auth_router, prefix="/api/auth")
+app.include_router(admin_router, prefix="/api/admin")
+
 
 # Allow CORS for React frontend
 app.add_middleware(
@@ -29,15 +36,12 @@ def read_root():
     return {"message": "Athletica AI Backend is running"}
 
 @app.websocket("/ws/cv")
-async def cv_websocket(websocket: WebSocket, db: Session = Depends(get_db)):
+async def cv_websocket(websocket: WebSocket, exercise: str = "squat", uid: str = "guest", db=Depends(get_db)):
     await websocket.accept()
     biomechanics = BiomechanicsEngine(smoothing_window=5)
     
     # Track the start of a session
-    new_session = SessionStats(exercise="squat", start_time=datetime.utcnow())
-    db.add(new_session)
-    db.commit()
-    db.refresh(new_session)
+    start_time = datetime.utcnow()
 
     try:
         while True:
@@ -65,13 +69,8 @@ async def cv_websocket(websocket: WebSocket, db: Session = Depends(get_db)):
             landmarks = pose_detector.extract_key_landmarks(results)
 
             if landmarks:
-                # Process Biomechanics for Squat (Hip, Knee, Ankle)
-                metrics = biomechanics.process_squat(
-                    hip=landmarks["hip"],
-                    knee=landmarks["knee"],
-                    ankle=landmarks["ankle"],
-                    shoulder=landmarks["shoulder"]
-                )
+                # Process Biomechanics dynamically based on chosen exercise
+                metrics = biomechanics.process_exercise(exercise, landmarks)
                 
                 # Bundle the results to send back
                 response_data = {
@@ -90,11 +89,35 @@ async def cv_websocket(websocket: WebSocket, db: Session = Depends(get_db)):
             await websocket.send_text(json.dumps(response_data))
             
     except WebSocketDisconnect:
-        # Save session stats when user disconnects
+        # Save session stats async when user disconnects
         print("Frontend disconnected.")
-        new_session.end_time = datetime.utcnow()
-        new_session.total_reps = biomechanics.rep_count
-        new_session.incorrect_postures = biomechanics.incorrect_posture_count
-        db.commit()
+        end_time = datetime.utcnow()
+        duration_seconds = int((end_time - start_time).total_seconds())
+
+        session_data = {
+            "user_id": uid,
+            "exercise": exercise,
+            "start_time": start_time,
+            "end_time": end_time,
+            "duration": duration_seconds,
+            "total_reps": biomechanics.rep_count,
+            "incorrect_postures": biomechanics.incorrect_posture_count
+        }
+        
+        # Insert into MongoDB collection 'sessions'
+        await db.sessions.insert_one(session_data)
+        
+        # If real user, update lifetime metrics via $inc globally
+        if uid != "guest":
+            try:
+                await db.users.update_one(
+                    {"_id": ObjectId(uid)},
+                    {"$inc": {"total_app_time": duration_seconds, "lifetime_reps": biomechanics.rep_count}}
+                )
+                print(f"Updated lifetime stats for {uid}")
+            except Exception as e:
+                print(f"Failed to update user stats: {e}")
+                
+        print("Session saved to MongoDB Atlas.")
     except Exception as e:
         print(f"WebSocket error: {e}")

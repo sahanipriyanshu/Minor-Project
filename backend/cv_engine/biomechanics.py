@@ -38,53 +38,81 @@ class BiomechanicsEngine:
         self.angle_history.append(angle)
         return sum(self.angle_history) / len(self.angle_history)
 
-    def process_squat(self, hip, knee, ankle, shoulder):
+    def process_exercise(self, exercise_type, landmarks_dict):
         """
-        Process the squat logic for a single frame.
-        Includes state machine, rep counting, and basic form checking.
+        Process logic based on exercise type.
+        landmarks_dict expects: hip, knee, ankle, shoulder, elbow, wrist
         """
-        raw_angle = self.calculate_angle(hip, knee, ankle)
-        smoothed_angle = self.smooth_angle(raw_angle)
-        
         feedback = []
+        smoothed_angle = 180
         
-        # Form Validation: Back straightness (simplified by hip-shoulder vertical alignment)
-        # In a real 3D model we'd measure torso lean heavily. For 2D MVP, just check extreme lean.
-        hip_x, hip_y = hip
-        shoulder_x, shoulder_y = shoulder
-        if abs(shoulder_x - hip_x) > 0.3: # Threshold depends on normalized coords [0,1]
-            feedback.append("Keep Back Straight")
+        if exercise_type == 'squat':
+            raw_angle = self.calculate_angle(landmarks_dict['hip'], landmarks_dict['knee'], landmarks_dict['ankle'])
+            smoothed_angle = self.smooth_angle(raw_angle)
+            
+            # Form Validation: Back straightness
+            hip_x, hip_y = landmarks_dict['hip']
+            shoulder_x, shoulder_y = landmarks_dict['shoulder']
+            if abs(shoulder_x - hip_x) > 0.3:
+                feedback.append("Keep Back Straight")
 
-        # Form Validation: Knee collapse can be somewhat inferred if x coords of knee and ankle differ wildly
-        # but 3D landmarks work better. We will stick to the back for now.
+            # State Machine Transitions
+            if smoothed_angle > 160:
+                if self.state == "DOWN":
+                    self.state = "UP"
+                    self.rep_count += 1
+                    feedback.append("Good Rep!")
+                else:
+                    self.state = "UP"
+            elif smoothed_angle < 90:
+                if self.state == "UP":
+                    self.state = "DOWN"
+                    feedback.append("Hold... Now Go Up")
+            elif 90 <= smoothed_angle <= 130 and self.state == "UP":
+                 feedback.append("Go Lower")
+                 
+        elif exercise_type == 'pushup':
+            raw_angle = self.calculate_angle(landmarks_dict['shoulder'], landmarks_dict['elbow'], landmarks_dict['wrist'])
+            smoothed_angle = self.smooth_angle(raw_angle)
+            
+            # Form Validation: Hip/Shoulder alignment can be added later
+            # State Machine Transitions
+            if smoothed_angle > 160:
+                if self.state == "DOWN":
+                    self.state = "UP"
+                    self.rep_count += 1
+                    feedback.append("Good Pushup!")
+                else:
+                    self.state = "UP"
+            elif smoothed_angle < 90:
+                if self.state == "UP":
+                    self.state = "DOWN"
+                    feedback.append("Push Upwards")
+                    
+        elif exercise_type == 'bicep_curl':
+            raw_angle = self.calculate_angle(landmarks_dict['shoulder'], landmarks_dict['elbow'], landmarks_dict['wrist'])
+            smoothed_angle = self.smooth_angle(raw_angle)
+            
+            # State Machine
+            if smoothed_angle > 150: # Extended
+                if self.state == "UP":
+                    self.state = "DOWN"
+                    self.rep_count += 1
+                    feedback.append("Good Curl!")
+                else:
+                    self.state = "DOWN"
+            elif smoothed_angle < 45: # Flexed
+                if self.state == "DOWN":
+                    self.state = "UP"
+                    feedback.append("Lower slowly")
 
-        # State Machine Transitions
-        # angle > 160 -> Standing (UP)
-        # angle < 90 -> Squat (DOWN)
-        if smoothed_angle > 160:
-            if self.state == "DOWN":
-                self.state = "UP"
-                self.rep_count += 1
-                feedback.append("Good Rep!")
-            else:
-                self.state = "UP"
-        
-        elif smoothed_angle < 90:
-            if self.state == "UP":
-                self.state = "DOWN"
-                feedback.append("Hold... Now Go Up")
-                
-        # Prompting user to go lower if they are lingering in middle
-        elif 90 <= smoothed_angle <= 130 and self.state == "UP":
-             feedback.append("Go Lower")
-             
         # Record incorrect posture stats
-        if "Keep Back Straight" in feedback or "Knees collapsing inward" in feedback:
+        if any(f in ["Keep Back Straight", "Knees collapsing inward"] for f in feedback):
             self.incorrect_posture_count += 1
 
         return {
             "angle": round(smoothed_angle, 1),
             "state": self.state,
             "reps": self.rep_count,
-            "feedback": feedback[-1] if feedback else "" # Returning the most urgent feedback
+            "feedback": feedback[-1] if feedback else ""
         }

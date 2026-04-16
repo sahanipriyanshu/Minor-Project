@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import { Activity, AlertTriangle, CheckCircle, Volume2 } from 'lucide-react';
 
-const FitnessCoach = () => {
+const FitnessCoach = ({ exerciseType, uid }) => {
   const webcamRef = useRef(null);
   const canvasRef = useRef(null);
   const wsRef = useRef(null);
@@ -25,11 +25,14 @@ const FitnessCoach = () => {
   }, [lastSpeechTime]);
 
   useEffect(() => {
-    // Setup WebSocket
-    wsRef.current = new WebSocket('ws://localhost:8000/ws/cv');
+    // Basic cleanup logic if connecting again
+    if (wsRef.current) wsRef.current.close();
+    
+    // Setup WebSocket with exercise type and uid query param
+    wsRef.current = new WebSocket(`ws://localhost:8000/ws/cv?exercise=${exerciseType}&uid=${uid}`);
     
     wsRef.current.onopen = () => {
-      console.log('Connected to CV Engine Engine');
+      console.log('Connected to CV Engine for ' + exerciseType);
       setIsConnected(true);
     };
 
@@ -53,7 +56,7 @@ const FitnessCoach = () => {
         wsRef.current.close();
       }
     };
-  }, [speakFeedback]);
+  }, [speakFeedback, exerciseType]);
 
   // Capture frame and send over WS
   const captureFrame = useCallback(() => {
@@ -126,7 +129,7 @@ const FitnessCoach = () => {
           <div className="space-y-6">
             <div className="p-4 bg-slate-700/50 rounded-xl">
               <p className="text-slate-400 text-sm font-medium mb-1 flex items-center gap-2">
-                <Activity size={16} /> Total Reps (Squats)
+                <Activity size={16} /> Total Reps (Session)
               </p>
               <p className="text-5xl font-black text-white">{metrics.reps}</p>
             </div>
@@ -139,7 +142,7 @@ const FitnessCoach = () => {
                 </p>
               </div>
               <div className="p-4 bg-slate-700/50 rounded-xl">
-                <p className="text-slate-400 text-sm font-medium mb-1">Knee Angle</p>
+                <p className="text-slate-400 text-sm font-medium mb-1">Joint Angle</p>
                 <p className="text-xl font-bold text-white">{metrics.angle}°</p>
               </div>
             </div>

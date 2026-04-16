@@ -1,0 +1,33 @@
+# Python virtual environment
+backend/venv/
+backend/__pycache__/
+backend/routes/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Node modules
+frontend/node_modules/
+node_modules/
+
+# Vite build output
+frontend/dist/
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/

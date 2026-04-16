@@ -53,11 +53,19 @@ class PoseDetector:
         left_shoulder = [landmarks[self.mp_pose.PoseLandmark.LEFT_SHOULDER.value].x, 
                          landmarks[self.mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
                          
+        left_elbow = [landmarks[self.mp_pose.PoseLandmark.LEFT_ELBOW.value].x, 
+                      landmarks[self.mp_pose.PoseLandmark.LEFT_ELBOW.value].y]
+                      
+        left_wrist = [landmarks[self.mp_pose.PoseLandmark.LEFT_WRIST.value].x, 
+                      landmarks[self.mp_pose.PoseLandmark.LEFT_WRIST.value].y]
+                         
         # Return normalized coordinates natively
         return {
             "hip": left_hip,
             "knee": left_knee,
             "ankle": left_ankle,
             "shoulder": left_shoulder,
+            "elbow": left_elbow,
+            "wrist": left_wrist,
             "raw_landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z, "visibility": lm.visibility, "presence": getattr(lm, 'presence', 0.0)} for lm in landmarks]
         }

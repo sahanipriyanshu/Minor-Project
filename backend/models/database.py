@@ -1,31 +1,15 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
-from sqlalchemy.orm import declarative_base, sessionmaker
-from datetime import datetime
 import os
+from motor.motor_asyncio import AsyncIOMotorClient
+from dotenv import load_dotenv
 
-DATABASE_URL = "sqlite:///./fitness_app.db"
+load_dotenv()
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+print(f"Connecting to MongoDB...")
 
-class SessionStats(Base):
-    __tablename__ = "session_stats"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String, index=True, default="guest") # Extendable later
-    exercise = Column(String) # e.g., 'squat'
-    total_reps = Column(Integer, default=0)
-    incorrect_postures = Column(Integer, default=0)
-    start_time = Column(DateTime, default=datetime.utcnow)
-    end_time = Column(DateTime, nullable=True)
-
-# Create tables
-Base.metadata.create_all(bind=engine)
+client = AsyncIOMotorClient(MONGO_URI)
+database = client.athletica_ai  # Our database name
 
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    """Returns the async Motor database instance."""
+    return database
