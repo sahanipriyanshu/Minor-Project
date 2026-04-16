@@ -11,7 +11,7 @@ from cv_engine.biomechanics import BiomechanicsEngine
 from models.database import get_db, SessionStats
 from sqlalchemy.orm import Session
 
-app = FastAPI(title="AI Fitness Coach API")
+app = FastAPI(title="Athletica AI API")
 
 # Allow CORS for React frontend
 app.add_middleware(
@@ -26,7 +26,7 @@ pose_detector = PoseDetector(model_complexity=1) # 1 for better performance/accu
 
 @app.get("/")
 def read_root():
-    return {"message": "AI Fitness Coach Backend is running"}
+    return {"message": "Athletica AI Backend is running"}
 
 @app.websocket("/ws/cv")
 async def cv_websocket(websocket: WebSocket, db: Session = Depends(get_db)):
